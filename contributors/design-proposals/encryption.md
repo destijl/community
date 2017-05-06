@@ -3,7 +3,7 @@
 ## Abstract
 
 The scope of this proposal is to ensure that resources can be encrypted at the
-datastore layer. Encryption will be optional for any resource but will be used
+datastore layer. Encryption will be optional for any resource, but will be used
 by default for the Secret resource. Secrets are already protected in transit via
 TLS.
 
@@ -75,10 +75,11 @@ implementation must be able to delegate to the appropriate provider.
 
 ### AES-GCM Encryption provider for 1.7 alpha
 
-Implemented in https://github.com/kubernetes/kubernetes/pull/41939.
+Implemented in [#41939](https://github.com/kubernetes/kubernetes/pull/41939).
 
-TODO: Decide if https://godoc.org/golang.org/x/crypto/nacl/secretbox should be
-used instead.
+TODO: Decide if
+[secretbox](https://godoc.org/golang.org/x/crypto/nacl/secretbox) should be used
+instead.
 
 The simplest possible provider is an AES-GCM encrypter/decrypter using AEAD,
 where we create a unique nonce on each new write to etcd, use that as the IV for
@@ -149,16 +150,11 @@ nonce, authenticatedData, cipherText := // slice from bytes
 out, err := aead.Open(nil, nonce, cipherText, authenticatedData)
 ```
 
-## Key Generation
+## Key Generation Distribution and Rotation
 
-For the 1.7 alpha there will be no key generation, the encryption provider
-simply expects a key to be passed in. Future versions could generate a random
-key, and display it one-time to the user, who would then be responsible for
-proper storage and safekeeping.
-
-## Key Distribution and Rotation
-
-For the 1.7 alpha we want to support a simple distribution and rotation scheme.
+For the 1.7 alpha we want to support a simple user-driven key generation,
+distribution and rotation scheme. Automatic rotation may be achievable in the
+future.
 
 To enable key rotation a common pattern is to have keys used for resource
 encryption encrypted by another set of keys (Key Encryption Keys aka KEK).  The
@@ -170,7 +166,7 @@ AWS KMS, Google Cloud KMS, Hashicorp Vault etc. should be possible. Using a
 remote encrypt/decrypt API offered by an external store will not be supported
 for performance reasons.
 
-### Option 1: Simple List of DEKs on disk
+### Option 1: Simple list of DEKs on disk
 
 To enable encryption a user calls PUT on a /rotate API endpoint. This causes a
 new Data Encryption Key (DEK) to be created and written to a file on the API
@@ -298,8 +294,8 @@ happen only when a namespace is created, and reads are somewhat common.
 
 ### Actionable Items / Milestones
 
-* [p0] Add ValueTransformer to storage (https://github.com/kubernetes/kubernetes/pull/41939)
-* [p0] Create a default implementation of AES-GCM interface (https://github.com/kubernetes/kubernetes/pull/41939)
+* [p0] Add ValueTransformer to storage (Done in [#41939](https://github.com/kubernetes/kubernetes/pull/41939))
+* [p0] Create a default implementation of AES-GCM interface (Done in [#41939](https://github.com/kubernetes/kubernetes/pull/41939))
 * [p0] Add encryption flags on kube-apiserver and key rotation API
 * [p1] Add kubectl command to call /rotate endpoint
 * [p1] Audit of default implementation for safety and security
@@ -307,16 +303,19 @@ happen only when a namespace is created, and reads are somewhat common.
 * [p2] Documentation and users guide
 * [p2] Read cache layer if encrypting/decrypting Secrets adds too much load on kube-apiserver
 
-# Alternatives Considered
 
-## Encrypting the entire etcd database
+## Alternative Considered: Encrypting the entire etcd database
+
+Rather than encrypting individual resources inside the etcd database, another
+approach is to encrypt the entire database.
 
 Pros:
 
  - Removes the complexity of deciding which types of things should be encrypted
    in the database.
- - Protects other sensitive configuration and proprietary information that might
-   be exposed if etcd backups are made public accidentally.
+ - Protects any other sensitive information that might be exposed if etcd
+   backups are made public accidentally or one of the other desribed attacks
+   occurs.
 
 Cons:
 
